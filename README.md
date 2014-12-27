@@ -50,3 +50,8 @@ License
     THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+post scriptum
+-------------
+Here's a picture of a cat, may my sins be forgiven
+![cat](http://www.vetprofessionals.com/catprofessional/images/home-cat.jpg)
