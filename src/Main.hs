@@ -1,6 +1,8 @@
 module Main where
 import           Cards
 import           Data.IORef
+import           Game
+import           Player
 import           System.IO
 import           Text.Read
 

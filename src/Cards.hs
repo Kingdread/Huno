@@ -10,45 +10,12 @@ data Card = Card Color Value | Pick | Pick4 | Picked Color deriving (Eq, Show, R
 type Deck = [Card]
 type Hand = [Card]
 
-data PlayerType = Ai | Human deriving (Eq, Show)
-
-data Player = Player {
-    getType  :: PlayerType
-  , getName  :: String
-  , getCards :: Hand
-  } deriving (Show)
-
-data Game = Game { topCard :: Card
-                 , players :: [Player]
-                 , stack   :: Deck
-                 , ntake   :: Int
-                 , nskip   :: Bool
-                 } deriving (Show)
-
-data Move = Play Card | Draw deriving (Eq, Show)
-
-addCards :: [Card] -> Player -> Player
-addCards a (Player t n c)    = Player t n (a ++ c)
-
-applyHand :: (Hand -> Hand) -> Player -> Player
-applyHand f (Player t n c)    = Player t n (f c)
-
--- | Returns whether whether card2 can be played on top of card1
-isValidMove :: Game -> Card -> Bool
-isValidMove game card = if ntake game == 0 then isValidMove_ (topCard game) card
-                        else case card of
-                            (Card _ Take2) -> not (isPick4 . topCard $ game)
-                            _ -> False
-                        where
-                        isPick4 (Picked _) = True
-                        isPick4 _          = False
-
-isValidMove_ :: Card -> Card -> Bool
+isValidCard :: Card -> Card -> Bool
 -- Normal cards, either color matches or value matches
-isValidMove_ (Card c1 v1) (Card c2 v2) = c1 == c2 || v1 == v2
+isValidCard (Card c1 v1) (Card c2 v2) = c1 == c2 || v1 == v2
 -- You can put the black ones on top of everything
-isValidMove_ _ Pick  = True
-isValidMove_ _ Pick4 = True
+isValidCard _ Pick  = True
+isValidCard _ Pick4 = True
 -- Color picked
 isValidMove_ (Picked c1) (Card c2 _) = c1 == c2
 -- If this case happens, there is some logic flaw in the function that
