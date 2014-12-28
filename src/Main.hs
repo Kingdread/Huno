@@ -17,11 +17,11 @@ import           Text.Read           (readMaybe)
 getMove :: (Monad m, MonadIO m, MonadState Game m) => Bool -> m Move
 getMove s = gets (head . players) >>= getMove_ s
 
+enumerate :: [a] -> [(Int, a)]
+enumerate = zip [0..]
+
 formatMoves :: [Move] -> String
-formatMoves m = fM m (0 :: Int)
-  where
-   fM (x:xs) i = show i ++ ".: " ++ show x ++ "\n" ++ fM xs (i + 1)
-   fM [] _     = ""
+formatMoves = foldl (\a (i, m) -> a ++ show i ++ ".:" ++ show m ++ "\n") "" . enumerate
 
 getInputBelow :: Int -> IO Int
 getInputBelow limit = do
