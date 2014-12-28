@@ -53,20 +53,26 @@ getMove_ (Player Human name hand) = do
 
 -- | Takes a list of "skeleton players" and deals the (shuffled) cards.
 makeGame :: [Player] -> IO Game
-makeGame participants = do
-    d <- shuffled deck
-    let (pl, nd) = deal participants [] d
-    let (top:rest) = nd
-    return Game { topCard = top
-                , players = pl
-                , stack   = rest
-                , ntake   = 0
-                , nskip   = False
-                }
-    where
-    deal [] pls cards     = (pls, cards)
-    deal (p:ps) pls cards = let (player_cards, remainder) = splitAt 7 cards
-                            in deal ps (withCards p player_cards : pls) remainder
+makeGame participants = liftM (makeGame' participants) $ shuffled deck
+
+makeGame' :: [Player] -> Deck -> Game
+makeGame' participants d =
+  let
+    (pl, nd) = deal participants [] d
+    (top:rest) = nd
+  in
+   Game { topCard = top
+        , players = pl
+        , stack   = rest
+        , ntake   = 0
+        , nskip   = False
+        }
+
+deal :: [Player] -> [Player] -> Hand -> ([Player], Hand)
+deal [] pls cards     = (pls, cards)
+deal (p:ps) pls cards = let (player_cards, remainder) = splitAt 7 cards
+                        in deal ps (withCards p player_cards : pls) remainder
+  where
     withCards (Player t n _)    = Player t n
 
 filterOne :: (a -> Bool) -> [a] -> [a]
@@ -88,6 +94,8 @@ updateLastPlayer f p = let (pls, lst:_) = splitAt (length p - 1) p
 cname :: Game -> String
 cname = getName . last . players
 
+nextPlayer :: Game -> Game
+nextPlayer g = g { players = rotate . players $ g }
 
 -- | Performs a single game round, usually called in a loop
 gameRound :: (Monad m, MonadIO m, MonadState Game m) => m ()
@@ -99,7 +107,7 @@ gameRound = do
       putStrLn ("\n\nThe top card is " ++ (show . topCard $ initial))
       putStrLn ("It's " ++ pname ++ " turn, " ++ show pcards ++ " cards left")
     -- Advance to the next player
-    modify (\g -> g { players = rotate . players $ g })
+    modify nextPlayer
     game <- get
     if nskip game then do
         liftIO $ putStrLn (pname ++ " skips the round")
@@ -150,16 +158,20 @@ nextSkip card = case card of
   Card _ Skip -> True
   _           -> False
 
+doMoveUpdate :: Card -> Card -> Game -> Game
+doMoveUpdate card nextTop g = g {
+    topCard = nextTop
+  , ntake = nextTake card . ntake $ g
+  , nskip = nextSkip card
+  , players = nextPlayersModifier card . updateLastPlayer (filterOne (/= card)) . players $ g
+  }
+
 doMove :: (Monad m, MonadIO m, MonadState Game m) => Move -> m ()
 doMove (Play card) = do
   game <- get
   liftIO $ putStrLn (cname game ++ " decides to play " ++ show card)
   nTopCard <- nextTopCard card
-  modify (\g -> g { topCard = nTopCard
-                  , ntake = nextTake card . ntake $ g
-                  , nskip = nextSkip card
-                  , players = nextPlayersModifier card . updateLastPlayer (filterOne (/= card)) . players $ g
-                  })
+  modify $ doMoveUpdate card nTopCard
 doMove Draw = do
   g <- get
   liftIO $ putStrLn (cname g ++ " can't play a card")
