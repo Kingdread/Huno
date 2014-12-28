@@ -16,9 +16,9 @@ getMove :: (Monad m, MonadIO m) => StateT Game m Move
 getMove = gets (last . players) >>= getMove_
 
 formatMoves :: [Move] -> String
-formatMoves m = fM m 0
+formatMoves m = fM m (0 :: Int)
   where
-   fM (x:xs) i = (show i) ++ ".: " ++ (show x) ++ "\n" ++ fM xs (i + 1)
+   fM (x:xs) i = show i ++ ".: " ++ show x ++ "\n" ++ fM xs (i + 1)
    fM [] _     = ""
 
 getInputBelow :: Int -> IO Int
@@ -70,7 +70,7 @@ makeGame participants = do
 filterOne :: (a -> Bool) -> [a] -> [a]
 filterOne _ []     = []
 filterOne f (x:xs) = if f x
-                     then x : (filterOne f xs)
+                     then x : filterOne f xs
                      else xs
 
 draw :: Int -> Game -> Game
@@ -80,8 +80,8 @@ draw n g = let (taken, st) = splitAt n (stack g)
                 }
 
 updateLastPlayer :: (Hand -> Hand) -> [Player] -> [Player]
-updateLastPlayer f p = let (pls, (last:_)) = splitAt ((length p) - 1) p
-                       in pls ++ [applyHand f last]
+updateLastPlayer f p = let (pls, lst:_) = splitAt (length p - 1) p
+                       in pls ++ [applyHand f lst]
 
 cname :: Game -> String
 cname = getName . last . players
@@ -95,7 +95,7 @@ gameRound = do
     let pcards = length . getCards . head . players $ initial
     liftIO $ do
       putStrLn ("\n\nThe top card is " ++ (show . topCard $ initial))
-      putStrLn ("It's " ++ pname ++ " turn, " ++ (show pcards) ++ " cards left")
+      putStrLn ("It's " ++ pname ++ " turn, " ++ show pcards ++ " cards left")
     -- Advance to the next player
     modify (\g -> g { players = rotate . players $ g })
     game <- get
@@ -111,7 +111,7 @@ gameRound = do
                 liftIO $ putStrLn (pname ++ " takes a single card")
                 modify (draw 1)
             else do
-                liftIO $ putStrLn (pname ++ " takes " ++ (show nt) ++ " cards")
+                liftIO $ putStrLn (pname ++ " takes " ++ show nt ++ " cards")
                 modify (draw nt)
                 modify (\g -> g { ntake = 0 })
             getMove >>= doMove
@@ -123,46 +123,44 @@ pickColor = do
   g <- get
   liftIO $ do
     c <- getColor . last . players $ g
-    putStrLn ("The picked color is " ++ (show c))
+    putStrLn ("The picked color is " ++ show c)
     return c
+
+nextTopCard :: (Monad m, MonadIO m) => Card -> StateT Game m Card
+nextTopCard card = case card of
+  Pick  -> liftM Picked pickColor
+  Pick4 -> liftM Picked pickColor
+  _     -> return card
+
+nextPlayersModifier :: Card -> [Player] -> [Player]
+nextPlayersModifier card = case card of
+  Card _ Reverse -> reverse
+  _              -> id
+
+nextTake :: Card -> Int -> Int
+nextTake card = case card of
+  Pick4        -> const 4
+  Card _ Take2 -> (+ 2)
+  _            -> id
+
+nextSkip :: Card -> Bool
+nextSkip card = case card of
+  Card _ Skip -> True
+  _           -> False
 
 doMove :: (Monad m, MonadIO m) => Move -> StateT Game m ()
 doMove (Play card) = do
   game <- get
-  liftIO $ putStrLn ((cname game) ++ " decides to play " ++ show card)
-  case card of
-   Pick -> do
-     color <- pickColor
-     modify (\g -> g { topCard = Picked color
-                     , players = updateLastPlayer (filterOne (/= card)) (players g)
-                     })
-   Pick4 -> do
-     color <- pickColor
-     modify (\g -> g { topCard = Picked color
-                     , ntake = 4
-                     , players = updateLastPlayer (filterOne (/= card)) (players g)
-                     })
-   Card _ Reverse ->
-     modify (\g -> g { topCard = card
-                     , players = reverse . updateLastPlayer (filterOne (/= card)) . players $ g
-                     })
-   Card _ Take2 ->
-     modify (\g -> g { topCard = card
-                     , players = updateLastPlayer (filterOne (/= card)) (players g)
-                     , ntake = ntake g + 2
-                     })
-   Card _ Skip ->
-     modify (\g -> g { topCard = card
-                     , players = updateLastPlayer (filterOne (/= card)) (players g)
-                     , nskip = True
-                     })
-   Card _ _ ->
-     modify (\g -> g { topCard = card
-                     , players = updateLastPlayer (filterOne (/= card)) (players g)
-                     })
+  liftIO $ putStrLn (cname game ++ " decides to play " ++ show card)
+  nTopCard <- nextTopCard card
+  modify (\g -> g { topCard = nTopCard
+                  , ntake = nextTake card . ntake $ g
+                  , nskip = nextSkip card
+                  , players = nextPlayersModifier card . updateLastPlayer (filterOne (/= card)) . players $ g
+                  })
 doMove Draw = do
   g <- get
-  liftIO $ putStrLn ((cname g) ++ " can't play a card")
+  liftIO $ putStrLn (cname g ++ " can't play a card")
   return ()
 
 -- | Returns a color that the player picks
@@ -196,7 +194,7 @@ gameLoop = do
   if w
   then do
     winner <- gets $ last . players
-    liftIO $ putStrLn ((getName winner) ++ " has won the game")
+    liftIO $ putStrLn (getName winner ++ " has won the game")
   else do
     gameRound
     gameLoop
