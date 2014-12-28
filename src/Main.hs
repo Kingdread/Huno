@@ -23,7 +23,7 @@ getMove_ game (HumanPlayer name hand) = do
     where
     formatMoves :: [Move] -> String
     formatMoves m = fM m 0
-    fM (x:xs) i = (show i) ++ ".: " ++ (show x) ++ "\n" ++ fM xs (i + 1)
+    fM (x:xs) i = show i ++ ".: " ++ show x ++ "\n" ++ fM xs (i + 1)
     fM [] _     = ""
     getInputBelow limit = do
         putStr "Input a number: "
@@ -61,7 +61,7 @@ gameRound initial = do
     let pname = getName . head . players $ initial
     let pcards = length . getCards . head . players $ initial
     putStrLn ("\n\nThe top card is " ++ (show . topCard $ initial))
-    putStrLn ("It's " ++ pname ++ " turn, " ++ (show pcards) ++ " cards left")
+    putStrLn ("It's " ++ pname ++ " turn, " ++ show pcards ++ " cards left")
     ludus <- newIORef initial
     -- Advance to the next player
     modifyIORef' ludus (\g -> g { players = rotate . players $ g })
@@ -77,7 +77,7 @@ gameRound initial = do
                 putStrLn (pname ++ " takes a single card")
                 modifyIORef ludus (draw 1)
             else do 
-                putStrLn (pname ++ " takes " ++ (show nt) ++ " cards")
+                putStrLn (pname ++ " takes " ++ show nt ++ " cards")
                 modifyIORef ludus (draw nt)
                 modifyIORef ludus (\g -> g { ntake = 0 })
             game <- readIORef ludus
@@ -88,7 +88,7 @@ gameRound initial = do
     where
     filterOne :: (a -> Bool) -> [a] -> [a]
     filterOne _ []     = []
-    filterOne f (x:xs) = if f x then x : (filterOne f xs)
+    filterOne f (x:xs) = if f x then x : filterOne f xs
                          else xs
     draw :: Int -> Game -> Game
     draw n g = let (taken, st) = splitAt n (stack g)
@@ -96,47 +96,47 @@ gameRound initial = do
                     , stack = st
                     }
     updateLastPlayer :: (Hand -> Hand) -> [Player] -> [Player]
-    updateLastPlayer f p = let (pls, (last:_)) = splitAt ((length p) - 1) p
+    updateLastPlayer f p = let (pls, last:_) = splitAt (length p - 1) p
                            in pls ++ [applyHand f last]
     cname :: Game -> String
     cname = getName . last . players
     doMove :: Move -> Game -> IO Game
     doMove (Play card) g = do
-        putStrLn ((cname g) ++ " decides to play " ++ show card)
+        putStrLn (cname g ++ " decides to play " ++ show card)
         case card of
             Pick -> do
                 color <- getColor . last . players $ g
-                putStrLn ("The picked color is " ++ (show color))
+                putStrLn ("The picked color is " ++ show color)
                 return g { topCard = Picked color
                          , players = updateLastPlayer (filterOne (/= card)) (players g)
                          }
             Pick4 -> do
                 color <- getColor . last . players $ g
-                putStrLn ("The picked color is " ++ (show color))
+                putStrLn ("The picked color is " ++ show color)
                 return g { topCard = Picked color
                          , ntake = 4
                          , players = updateLastPlayer (filterOne (/= card)) (players g)
                          }
-            Card _ Reverse -> do
+            Card _ Reverse ->
                 return g { topCard = card
                          , players = reverse . updateLastPlayer (filterOne (/= card)) . players $ g
                          }
-            Card _ Take2 -> do
+            Card _ Take2 ->
                 return g { topCard = card
                          , players = updateLastPlayer (filterOne (/= card)) (players g)
                          , ntake = ntake g + 2
                          }
-            Card _ Skip -> do
+            Card _ Skip ->
                 return g { topCard = card
                          , players = updateLastPlayer (filterOne (/= card)) (players g)
                          , nskip = True
                          }
-            Card _ _ -> do
+            Card _ _ ->
                 return g { topCard = card
                          , players = updateLastPlayer (filterOne (/= card)) (players g)
                          }
     doMove Draw g = do
-        putStrLn ((cname g) ++ " can't play a card")
+        putStrLn (cname g ++ " can't play a card")
         return g
 
 
@@ -173,5 +173,5 @@ main = do
     gameLoop :: Game -> IO ()
     gameLoop g = if won g then do
                     let winner = last . players $ g
-                    putStrLn ((getName winner) ++ " has won the game")
+                    putStrLn (getName winner ++ " has won the game")
                  else gameRound g >>= gameLoop

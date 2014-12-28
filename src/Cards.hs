@@ -65,8 +65,8 @@ validMoves = filter . isValidMove
 
 -- | An unshuffled deck of cards as they are available in the game
 deck :: Deck
-deck = [(Card c Zero) | c <- [Red ..]]
-    ++ dup [(Card c v) | c <- [Red ..], v <- [One ..]]
+deck = [Card c Zero | c <- [Red ..]]
+    ++ dup [Card c v | c <- [Red ..], v <- [One ..]]
     ++ quad [Pick, Pick4]
     where
     dup = concatMap (replicate 2)
@@ -82,5 +82,5 @@ shuffled d  = do
     where
     takeAway [] _         = []
     takeAway (x:xs) index = if index == 0 then xs
-                            else x : (takeAway xs (index - 1))
+                            else x : takeAway xs (index - 1)
 
