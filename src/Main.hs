@@ -1,6 +1,5 @@
 module Main where
 import Cards
-import Data.IORef
 import System.IO
 import Text.Read
 
@@ -58,13 +57,11 @@ makeGame participants = do
 
 -- | Performs a single game round, usually called in a loop
 gameRound :: Game -> IO Game
-gameRound initial = do
-    let pname = getName . head . players $ initial
-    let pcards = length . getCards . head . players $ initial
-    putStrLn ("\n\nThe top card is " ++ (show . topCard $ initial))
+gameRound game = do
+    let pname = getName . head . players $ game
+    let pcards = length . getCards . head . players $ game
+    putStrLn ("\n\nThe top card is " ++ (show . topCard $ game))
     putStrLn ("It's " ++ pname ++ "'s turn, " ++ show pcards ++ " cards left")
-    ludus <- newIORef initial
-    game <- readIORef ludus
     if nskip game then do
         putStrLn (pname ++ " skips the round")
         return game { nskip = False
@@ -76,14 +73,14 @@ gameRound initial = do
             let nt = ntake game
             if nt == 0 then do
                 putStrLn (pname ++ " takes a single card")
-                modifyIORef ludus (draw 1)
+                let new_game = draw 1 game
+                new_move <- getMove new_game
+                doMove new_move new_game
             else do 
                 putStrLn (pname ++ " takes " ++ show nt ++ " cards")
-                modifyIORef ludus (draw nt)
-                modifyIORef ludus (\g -> g { ntake = 0 })
-            game <- readIORef ludus
-            move <- getMove game
-            doMove move game
+                return . draw nt $ game { ntake = 0
+                                        , players = rotate . players $ game
+                                        }
         else
             doMove move game
     where
@@ -139,7 +136,7 @@ gameRound initial = do
             Picked _ -> error "Cheater, how did you get that card?"
     doMove Draw g = do
         putStrLn (cname g ++ " can't play a card")
-        return g
+        return g { players = rotate . players $ g }
 
 
 -- | Returns a color that the player picks
