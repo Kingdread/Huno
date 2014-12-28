@@ -2,13 +2,19 @@ module Cards where
 
 import           System.Random
 
-data Color = Red | Blue | Green | Yellow deriving (Eq, Show, Read, Enum)
+data Color = Red | Blue | Green | Yellow deriving (Eq, Read, Enum)
 data Value = One | Two | Three | Four | Five | Six | Seven | Eight |
              Nine | Zero | Take2 | Skip | Reverse deriving (Eq, Show, Read, Enum)
 data Card = Card Color Value | Pick | Pick4 | Picked Color deriving (Eq, Show, Read)
 
 type Deck = [Card]
 type Hand = [Card]
+
+instance Show Color where
+    show Red = "\x1B[31mRed\x1B[m"
+    show Blue = "\x1B[34mBlue\x1B[m"
+    show Green = "\x1B[32mGreen\x1B[m"
+    show Yellow = "\x1B[33mYellow\x1B[m"
 
 isValidCard :: Card -> Card -> Bool
 -- Normal cards, either color matches or value matches

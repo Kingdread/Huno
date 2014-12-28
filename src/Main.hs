@@ -21,7 +21,7 @@ enumerate :: [a] -> [(Int, a)]
 enumerate = zip [0..]
 
 formatMoves :: [Move] -> String
-formatMoves = foldl (\a (i, m) -> a ++ show i ++ ".:" ++ show m ++ "\n") "" . enumerate
+formatMoves = foldl (\a (i, m) -> a ++ show i ++ ".: " ++ show m ++ "\n") "" . enumerate
 
 getInputBelow :: Int -> IO Int
 getInputBelow limit = do
@@ -109,7 +109,7 @@ gameRound = do
     let pcards = length . getCards . head . players $ initial
     liftIO $ do
       putStrLn ("\n\nThe top card is " ++ (show . topCard $ initial))
-      putStrLn ("It's " ++ pname ++ " turn, " ++ show pcards ++ " cards left")
+      putStrLn ("It's " ++ pname ++ "'s turn, " ++ show pcards ++ " cards left")
     game <- get
     if nskip game then do
         liftIO $ putStrLn (pname ++ " skips the round")
