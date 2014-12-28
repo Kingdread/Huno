@@ -10,7 +10,7 @@ data Game = Game { topCard :: Card
                  , nskip   :: Bool
                  } deriving (Show)
 
-data Move = Play Card | Draw deriving (Eq, Show)
+data Move = Play Card | Draw | Pass deriving (Eq, Show)
 
 -- | Returns whether whether card2 can be played on top of card1
 isValidMove :: Game -> Card -> Bool

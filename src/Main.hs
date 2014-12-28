@@ -14,8 +14,8 @@ import           Text.Read           (readMaybe)
 
 -- | Returns a Move that the current Player would do. Randomly picks one for
 -- the AI, asks the Player in case of a HumanPlayer
-getMove :: (Monad m, MonadIO m, MonadState Game m) => m Move
-getMove = gets (head . players) >>= getMove_
+getMove :: (Monad m, MonadIO m, MonadState Game m) => Bool -> m Move
+getMove s = gets (head . players) >>= getMove_ s
 
 formatMoves :: [Move] -> String
 formatMoves m = fM m (0 :: Int)
@@ -34,22 +34,26 @@ getInputBelow limit = do
              else getInputBelow limit
    Nothing -> getInputBelow limit
 
-getMove_ :: (Monad m, MonadIO m, MonadState Game m) => Player -> m Move
-getMove_ (Player Ai _ hand)       = do
+getMove_ :: (Monad m, MonadIO m, MonadState Game m) => Bool -> Player -> m Move
+getMove_ snd_pss (Player Ai _ hand)       = do
   game <- get
   case validMoves game hand of
    (x:_) -> return (Play x)
-   [] -> return Draw
-getMove_ (Player Human name hand) = do
+   [] -> return . drawOrPass $ snd_pss
+getMove_ snd_pss (Player Human name hand) = do
   game <- get
   moves <- liftIO $ do
     putStrLn ("Player " ++ name ++ ":")
     putStrLn ("Your hand is: " ++ show hand)
-    let m = Draw : (map Play . validMoves game $ hand)
+    let m = drawOrPass snd_pss : (map Play . validMoves game $ hand)
     putStr . formatMoves $ m
     return m
   answer <- liftIO $ getInputBelow (length moves)
   return (moves !! answer)
+
+drawOrPass :: Bool -> Move
+drawOrPass False = Draw
+drawOrPass True  = Pass
 
 -- | Takes a list of "skeleton players" and deals the (shuffled) cards.
 makeGame :: [Player] -> IO Game
@@ -113,13 +117,13 @@ gameRound = do
         modify nextPlayer
         return ()
     else do
-        move <- getMove
+        move <- getMove False
         if move == Draw then do
             let nt = ntake game `max` 1
             liftIO $ putStrLn (pname ++ " " ++ takeLine nt)
             modify $ draw nt
             modify $ \g -> g { ntake = 0 }
-            getMove >>= doMove
+            getMove True >>= doMove
         else
             doMove move
 
@@ -171,10 +175,11 @@ doMove (Play card) = do
   liftIO $ putStrLn (cname game ++ " decides to play " ++ show card)
   nTopCard <- nextTopCard card
   modify $ doMoveUpdate card nTopCard
-doMove Draw = do
+doMove Pass = do
   g <- get
   liftIO $ putStrLn (cname g ++ " can't play a card")
   return ()
+doMove _ = error "You shouldn't be able to do that move here"
 
 -- | Returns a color that the player picks
 getColor :: Player -> IO Color
