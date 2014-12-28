@@ -1,6 +1,6 @@
 module Cards where
 
-import System.Random
+import           System.Random
 
 data Color = Red | Blue | Green | Yellow deriving (Eq, Show, Read, Enum)
 data Value = One | Two | Three | Four | Five | Six | Seven | Eight |
@@ -10,7 +10,13 @@ data Card = Card Color Value | Pick | Pick4 | Picked Color deriving (Eq, Show, R
 type Deck = [Card]
 type Hand = [Card]
 
-data Player = AiPlayer String Hand | HumanPlayer String Hand deriving (Show)
+data PlayerType = Ai | Human deriving (Eq, Show)
+
+data Player = Player {
+    getType  :: PlayerType
+  , getName  :: String
+  , getCards :: Hand
+  } deriving (Show)
 
 data Game = Game { topCard :: Card
                  , players :: [Player]
@@ -21,22 +27,11 @@ data Game = Game { topCard :: Card
 
 data Move = Play Card | Draw deriving (Eq, Show)
 
-getName :: Player -> String
-getName (AiPlayer n _)    = n
-getName (HumanPlayer n _) = n
-
-getCards :: Player -> Hand
-getCards (AiPlayer _ c)    = c
-getCards (HumanPlayer _ c) = c
-
 addCards :: [Card] -> Player -> Player
-addCards a (AiPlayer n c)    = AiPlayer n (a ++ c)
-addCards a (HumanPlayer n c) = HumanPlayer n (a ++ c)
+addCards a (Player t n c)    = Player t n (a ++ c)
 
 applyHand :: (Hand -> Hand) -> Player -> Player
-applyHand f (AiPlayer n c)    = AiPlayer n (f c)
-applyHand f (HumanPlayer n c) = HumanPlayer n (f c)
-
+applyHand f (Player t n c)    = Player t n (f c)
 
 -- | Returns whether whether card2 can be played on top of card1
 isValidMove :: Game -> Card -> Bool
@@ -64,7 +59,6 @@ isValidMove_ Pick4 _      = error "No really, someone messed up the logic"
 -- And nobody should every try to place a Picked Color card, they are only
 -- used internally
 isValidMove_ _ (Picked _) = error "Meeep, still broken, it won't fix itself"
-
 
 -- | Takes a Hand and returns a list of every card that could be played
 validMoves :: Game -> Hand -> [Card]

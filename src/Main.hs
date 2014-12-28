@@ -1,8 +1,8 @@
 module Main where
-import Cards
-import Data.IORef
-import System.IO
-import Text.Read
+import           Cards
+import           Data.IORef
+import           System.IO
+import           Text.Read
 
 -- | Returns a Move that the current Player would do. Randomly picks one for
 -- the AI, asks the Player in case of a HumanPlayer
@@ -10,10 +10,10 @@ getMove :: Game -> IO Move
 getMove g = getMove_ g (last . players $ g)
 
 getMove_ :: Game -> Player -> IO Move
-getMove_ game (AiPlayer _ hand)       = case validMoves game hand of
+getMove_ game (Player Ai _ hand)       = case validMoves game hand of
                                            (x:_) -> return (Play x)
                                            [] -> return Draw
-getMove_ game (HumanPlayer name hand) = do
+getMove_ game (Player Human name hand) = do
     putStrLn ("Player " ++ name ++ ":")
     putStrLn ("Your hand is: " ++ show hand)
     let moves = Draw : (map Play . validMoves game $ hand)
@@ -52,8 +52,7 @@ makeGame participants = do
     deal [] pls cards     = (pls, cards)
     deal (p:ps) pls cards = let (player_cards, remainder) = splitAt 7 cards
                             in deal ps (withCards p player_cards : pls) remainder
-    withCards (AiPlayer n _)    = AiPlayer n
-    withCards (HumanPlayer n _) = HumanPlayer n
+    withCards (Player t n _)    = Player t n
 
 
 -- | Performs a single game round, usually called in a loop
@@ -144,12 +143,12 @@ gameRound initial = do
 
 -- | Returns a color that the player picks
 getColor :: Player -> IO Color
-getColor (AiPlayer _ hand) = let getCol [] = Blue
-                                 getCol (h:hs) = case h of
+getColor (Player Ai _ hand) = let getCol [] = Blue
+                                    getCol (h:hs) = case h of
                                                        Card col _ -> col
                                                        _ -> getCol hs
                                in return . getCol $ hand
-getColor h@(HumanPlayer _ _) = do
+getColor h@(Player Human _ _) = do
     putStr "Input a color (Red, Blue, Yellow, Green): "
     hFlush stdout
     inp <- getLine
@@ -170,7 +169,7 @@ won = any (null . getCards) . players
 -- | Run the main UNO game
 main :: IO ()
 main = do
-    game <- makeGame [HumanPlayer "Homo Sapiens" [], AiPlayer "Elisa" []]
+    game <- makeGame [Player Human "Homo Sapiens" [], Player Ai "Elisa" []]
     gameLoop game
     where
     gameLoop :: Game -> IO ()
