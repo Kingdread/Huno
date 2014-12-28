@@ -23,6 +23,7 @@ getMove_ game (HumanPlayer name hand) = do
     where
     formatMoves :: [Move] -> String
     formatMoves m = fM m 0
+    fM :: [Move] -> Integer -> String
     fM (x:xs) i = show i ++ ".: " ++ show x ++ "\n" ++ fM xs (i + 1)
     fM [] _     = ""
     getInputBelow limit = do
@@ -37,13 +38,13 @@ getMove_ game (HumanPlayer name hand) = do
 
 -- | Takes a list of "skeleton players" and deals the (shuffled) cards.
 makeGame :: [Player] -> IO Game
-makeGame players = do
+makeGame participants = do
     d <- shuffled deck
-    let (pl, nd) = deal players [] d
-    let (top:stack) = nd
+    let (pl, nd) = deal participants [] d
+    let (top:rest) = nd
     return Game { topCard = top
                 , players = pl
-                , stack   = stack
+                , stack   = rest
                 , ntake   = 0
                 , nskip   = False
                 }
@@ -96,8 +97,8 @@ gameRound initial = do
                     , stack = st
                     }
     updateLastPlayer :: (Hand -> Hand) -> [Player] -> [Player]
-    updateLastPlayer f p = let (pls, last:_) = splitAt (length p - 1) p
-                           in pls ++ [applyHand f last]
+    updateLastPlayer f p = let (pls, l:_) = splitAt (length p - 1) p
+                           in pls ++ [applyHand f l]
     cname :: Game -> String
     cname = getName . last . players
     doMove :: Move -> Game -> IO Game
@@ -135,6 +136,7 @@ gameRound initial = do
                 return g { topCard = card
                          , players = updateLastPlayer (filterOne (/= card)) (players g)
                          }
+            Picked _ -> error "Cheater, how did you get that card?"
     doMove Draw g = do
         putStrLn (cname g ++ " can't play a card")
         return g
@@ -142,8 +144,8 @@ gameRound initial = do
 
 -- | Returns a color that the player picks
 getColor :: Player -> IO Color
-getColor a@(AiPlayer _ hand) = let getCol [] = Blue
-                                   getCol (h:hs) = case h of
+getColor (AiPlayer _ hand) = let getCol [] = Blue
+                                 getCol (h:hs) = case h of
                                                        Card col _ -> col
                                                        _ -> getCol hs
                                in return . getCol $ hand
@@ -166,6 +168,7 @@ won :: Game -> Bool
 won = any (null . getCards) . players
 
 -- | Run the main UNO game
+main :: IO ()
 main = do
     game <- makeGame [HumanPlayer "Homo Sapiens" [], AiPlayer "Elisa" []]
     gameLoop game
