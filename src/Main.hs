@@ -7,7 +7,7 @@ import Text.Read
 -- | Returns a Move that the current Player would do. Randomly picks one for
 -- the AI, asks the Player in case of a HumanPlayer
 getMove :: Game -> IO Move
-getMove g = getMove_ g (last . players $ g)
+getMove g = getMove_ g (head . players $ g)
 
 getMove_ :: Game -> Player -> IO Move
 getMove_ game (AiPlayer _ hand)       = case validMoves game hand of
@@ -51,7 +51,7 @@ makeGame participants = do
     where
     deal [] pls cards     = (pls, cards)
     deal (p:ps) pls cards = let (player_cards, remainder) = splitAt 7 cards
-                            in deal ps (withCards p player_cards : pls) remainder
+                            in deal ps (pls ++ [withCards p player_cards]) remainder
     withCards (AiPlayer n _)    = AiPlayer n
     withCards (HumanPlayer n _) = HumanPlayer n
 
@@ -64,12 +64,12 @@ gameRound initial = do
     putStrLn ("\n\nThe top card is " ++ (show . topCard $ initial))
     putStrLn ("It's " ++ pname ++ "'s turn, " ++ show pcards ++ " cards left")
     ludus <- newIORef initial
-    -- Advance to the next player
-    modifyIORef' ludus (\g -> g { players = rotate . players $ g })
     game <- readIORef ludus
     if nskip game then do
         putStrLn (pname ++ " skips the round")
-        return game { nskip = False }
+        return game { nskip = False
+                    , players = rotate . players $ game
+                    }
     else do
         move <- getMove game
         if move == Draw then do
@@ -93,48 +93,48 @@ gameRound initial = do
                          else xs
     draw :: Int -> Game -> Game
     draw n g = let (taken, st) = splitAt n (stack g)
-               in g { players = updateLastPlayer (++taken) (players g)
+               in g { players = updateFirstPlayer (++taken) (players g)
                     , stack = st
                     }
-    updateLastPlayer :: (Hand -> Hand) -> [Player] -> [Player]
-    updateLastPlayer f p = let (pls, l:_) = splitAt (length p - 1) p
-                           in pls ++ [applyHand f l]
+    updateFirstPlayer :: (Hand -> Hand) -> [Player] -> [Player]
+    updateFirstPlayer f p = let (pl:pls) = p
+                            in applyHand f pl : pls
     cname :: Game -> String
-    cname = getName . last . players
+    cname = getName . head . players
     doMove :: Move -> Game -> IO Game
     doMove (Play card) g = do
         putStrLn (cname g ++ " decides to play " ++ show card)
         case card of
             Pick -> do
-                color <- getColor . last . players $ g
+                color <- getColor . head . players $ g
                 putStrLn ("The picked color is " ++ show color)
                 return g { topCard = Picked color
-                         , players = updateLastPlayer (filterOne (/= card)) (players g)
+                         , players = rotate . updateFirstPlayer (filterOne (/= card)) . players $ g
                          }
             Pick4 -> do
-                color <- getColor . last . players $ g
+                color <- getColor . head . players $ g
                 putStrLn ("The picked color is " ++ show color)
                 return g { topCard = Picked color
                          , ntake = 4
-                         , players = updateLastPlayer (filterOne (/= card)) (players g)
+                         , players = rotate . updateFirstPlayer (filterOne (/= card)) . players $ g
                          }
             Card _ Reverse ->
                 return g { topCard = card
-                         , players = reverse . updateLastPlayer (filterOne (/= card)) . players $ g
+                         , players = reverse . updateFirstPlayer (filterOne (/= card)) . players $ g
                          }
             Card _ Take2 ->
                 return g { topCard = card
-                         , players = updateLastPlayer (filterOne (/= card)) (players g)
+                         , players = rotate . updateFirstPlayer (filterOne (/= card)) . players $ g
                          , ntake = ntake g + 2
                          }
             Card _ Skip ->
                 return g { topCard = card
-                         , players = updateLastPlayer (filterOne (/= card)) (players g)
+                         , players = rotate . updateFirstPlayer (filterOne (/= card)) . players $ g
                          , nskip = True
                          }
             Card _ _ ->
                 return g { topCard = card
-                         , players = updateLastPlayer (filterOne (/= card)) (players g)
+                         , players = rotate . updateFirstPlayer (filterOne (/= card)) . players $ g
                          }
             Picked _ -> error "Cheater, how did you get that card?"
     doMove Draw g = do
