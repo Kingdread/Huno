@@ -178,6 +178,7 @@ doMove (Play card) = do
 doMove Pass = do
   g <- get
   liftIO $ putStrLn (cname g ++ " can't play a card")
+  modify nextPlayer
   return ()
 doMove _ = error "You shouldn't be able to do that move here"
 
