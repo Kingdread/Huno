@@ -7,10 +7,9 @@ import           Game
 import           Player
 
 import           Control.Monad.State
-import           Control.Monad.Writer
 
 import           System.IO
-import           Text.Read            (readMaybe)
+import           Text.Read           (readMaybe)
 
 
 -- | Returns a Move that the current Player would do. Randomly picks one for
