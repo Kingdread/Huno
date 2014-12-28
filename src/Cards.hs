@@ -17,20 +17,15 @@ isValidCard (Card c1 v1) (Card c2 v2) = c1 == c2 || v1 == v2
 isValidCard _ Pick  = True
 isValidCard _ Pick4 = True
 -- Color picked
-isValidMove_ (Picked c1) (Card c2 _) = c1 == c2
+isValidCard (Picked c1) (Card c2 _) = c1 == c2
 -- If this case happens, there is some logic flaw in the function that
 -- puts cards onto the stack. A Pick card should always be replaced by
 -- a Picked Color card.
-isValidMove_ Pick _       = error "Some dork ruined the game logic, fix pls"
-isValidMove_ Pick4 _      = error "No really, someone messed up the logic"
+isValidCard Pick _       = error "Some dork ruined the game logic, fix pls"
+isValidCard Pick4 _      = error "No really, someone messed up the logic"
 -- And nobody should every try to place a Picked Color card, they are only
 -- used internally
-isValidMove_ _ (Picked _) = error "Meeep, still broken, it won't fix itself"
-
--- | Takes a Hand and returns a list of every card that could be played
-validMoves :: Game -> Hand -> [Card]
-validMoves = filter . isValidMove
-
+isValidCard _ (Picked _) = error "Meeep, still broken, it won't fix itself"
 
 -- | An unshuffled deck of cards as they are available in the game
 deck :: Deck
