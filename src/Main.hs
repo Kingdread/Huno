@@ -116,17 +116,17 @@ gameRound = do
     else do
         move <- getMove
         if move == Draw then do
-            let nt = ntake game
-            if nt == 0 then do
-                liftIO $ putStrLn (pname ++ " takes a single card")
-                modify (draw 1)
-            else do
-                liftIO $ putStrLn (pname ++ " takes " ++ show nt ++ " cards")
-                modify (draw nt)
-                modify (\g -> g { ntake = 0 })
+            let nt = ntake game `min` 1
+            liftIO $ putStrLn (pname ++ " " ++ takeLine nt)
+            modify $ draw nt
+            modify $ \g -> g { ntake = 0 }
             getMove >>= doMove
         else
             doMove move
+
+takeLine :: Int -> String
+takeLine 1 = "takes a single card"
+takeLine n = "takes " ++ show n ++ " cards"
 
 pickColor :: (Monad m, MonadIO m, MonadState Game m) => m Color
 pickColor = do
