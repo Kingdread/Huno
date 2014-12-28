@@ -63,7 +63,7 @@ makeGame' :: [Player] -> Deck -> Game
 makeGame' participants d =
   let
     (pl, nd) = deal participants [] d
-    (top:rest) = nd
+    (top, rest) = chooseStartCard nd
   in
    Game { topCard = top
         , players = pl
@@ -71,6 +71,12 @@ makeGame' participants d =
         , ntake   = 0
         , nskip   = False
         }
+
+chooseStartCard :: Deck -> (Card, Deck)
+chooseStartCard []    = error "Empty deck to choose start card from"
+chooseStartCard (t:r) = if isValidStart t
+                        then (t, r)
+                        else chooseStartCard (r ++ [t])
 
 deal :: [Player] -> [Player] -> Hand -> ([Player], Hand)
 deal [] pls cards     = (pls, cards)

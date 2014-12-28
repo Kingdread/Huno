@@ -33,6 +33,16 @@ isValidCard Pick4 _      = error "No really, someone messed up the logic"
 -- used internally
 isValidCard _ (Picked _) = error "Meeep, still broken, it won't fix itself"
 
+-- | Returns True if a card is a valid starting card
+isValidStart :: Card -> Bool
+isValidStart Pick             = False
+isValidStart Pick4            = False
+isValidStart (Card _ Take2)   = False
+isValidStart (Card _ Skip)    = False
+isValidStart (Card _ Reverse) = False
+isValidStart (Picked _)       = False
+isValidStart (Card _ _)       = True
+
 -- | An unshuffled deck of cards as they are available in the game
 deck :: Deck
 deck = [Card c Zero | c <- [Red ..]]
