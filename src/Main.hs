@@ -62,7 +62,7 @@ gameRound initial = do
     let pname = getName . head . players $ initial
     let pcards = length . getCards . head . players $ initial
     putStrLn ("\n\nThe top card is " ++ (show . topCard $ initial))
-    putStrLn ("It's " ++ pname ++ " turn, " ++ show pcards ++ " cards left")
+    putStrLn ("It's " ++ pname ++ "'s turn, " ++ show pcards ++ " cards left")
     ludus <- newIORef initial
     -- Advance to the next player
     modifyIORef' ludus (\g -> g { players = rotate . players $ g })
