@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Main where
 
 import           Cards
@@ -5,14 +7,15 @@ import           Game
 import           Player
 
 import           Control.Monad.State
+import           Control.Monad.Writer
 
 import           System.IO
-import           Text.Read           (readMaybe)
+import           Text.Read            (readMaybe)
 
 
 -- | Returns a Move that the current Player would do. Randomly picks one for
 -- the AI, asks the Player in case of a HumanPlayer
-getMove :: (Monad m, MonadIO m) => StateT Game m Move
+getMove :: (Monad m, MonadIO m, MonadState Game m) => m Move
 getMove = gets (last . players) >>= getMove_
 
 formatMoves :: [Move] -> String
@@ -32,7 +35,7 @@ getInputBelow limit = do
              else getInputBelow limit
    Nothing -> getInputBelow limit
 
-getMove_ :: (Monad m, MonadIO m) => Player -> StateT Game m Move
+getMove_ :: (Monad m, MonadIO m, MonadState Game m) => Player -> m Move
 getMove_ (Player Ai _ hand)       = do
   game <- get
   case validMoves game hand of
@@ -88,7 +91,7 @@ cname = getName . last . players
 
 
 -- | Performs a single game round, usually called in a loop
-gameRound :: (Monad m, MonadIO m) => StateT Game m ()
+gameRound :: (Monad m, MonadIO m, MonadState Game m) => m ()
 gameRound = do
     initial <- get
     let pname = getName . head . players $ initial
@@ -118,7 +121,7 @@ gameRound = do
         else
             doMove move
 
-pickColor :: (Monad m, MonadIO m) => StateT Game m Color
+pickColor :: (Monad m, MonadIO m, MonadState Game m) => m Color
 pickColor = do
   g <- get
   liftIO $ do
@@ -126,7 +129,7 @@ pickColor = do
     putStrLn ("The picked color is " ++ show c)
     return c
 
-nextTopCard :: (Monad m, MonadIO m) => Card -> StateT Game m Card
+nextTopCard :: (Monad m, MonadIO m, MonadState Game m) => Card -> m Card
 nextTopCard card = case card of
   Pick  -> liftM Picked pickColor
   Pick4 -> liftM Picked pickColor
@@ -148,7 +151,7 @@ nextSkip card = case card of
   Card _ Skip -> True
   _           -> False
 
-doMove :: (Monad m, MonadIO m) => Move -> StateT Game m ()
+doMove :: (Monad m, MonadIO m, MonadState Game m) => Move -> m ()
 doMove (Play card) = do
   game <- get
   liftIO $ putStrLn (cname game ++ " decides to play " ++ show card)
@@ -188,7 +191,7 @@ rotate (x:xs) = xs ++ [x]
 won :: Game -> Bool
 won = any (null . getCards) . players
 
-gameLoop :: (Monad m, MonadIO m) => StateT Game m ()
+gameLoop :: (Monad m, MonadIO m, MonadState Game m) => m ()
 gameLoop = do
   w <- gets won
   if w
