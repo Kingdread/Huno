@@ -1,152 +1,189 @@
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Main where
-import Cards
-import System.IO
-import Text.Read
+
+import           Cards
+import           Game
+import           Player
+
+import           Control.Monad.State
+
+import           System.IO
+import           Text.Read           (readMaybe)
+
 
 -- | Returns a Move that the current Player would do. Randomly picks one for
 -- the AI, asks the Player in case of a HumanPlayer
-getMove :: Game -> IO Move
-getMove g = getMove_ g (head . players $ g)
+getMove :: (Monad m, MonadIO m, MonadState Game m) => m Move
+getMove = gets (head . players) >>= getMove_
 
-getMove_ :: Game -> Player -> IO Move
-getMove_ game (AiPlayer _ hand)       = case validMoves game hand of
-                                           (x:_) -> return (Play x)
-                                           [] -> return Draw
-getMove_ game (HumanPlayer name hand) = do
+formatMoves :: [Move] -> String
+formatMoves m = fM m (0 :: Int)
+  where
+   fM (x:xs) i = show i ++ ".: " ++ show x ++ "\n" ++ fM xs (i + 1)
+   fM [] _     = ""
+
+getInputBelow :: Int -> IO Int
+getInputBelow limit = do
+  putStr "Input a number: "
+  hFlush stdout
+  inp <- getLine
+  case (readMaybe inp :: Maybe Int) of
+   Just x -> if x < limit
+             then return x
+             else getInputBelow limit
+   Nothing -> getInputBelow limit
+
+getMove_ :: (Monad m, MonadIO m, MonadState Game m) => Player -> m Move
+getMove_ (Player Ai _ hand)       = do
+  game <- get
+  case validMoves game hand of
+   (x:_) -> return (Play x)
+   [] -> return Draw
+getMove_ (Player Human name hand) = do
+  game <- get
+  moves <- liftIO $ do
     putStrLn ("Player " ++ name ++ ":")
     putStrLn ("Your hand is: " ++ show hand)
-    let moves = Draw : (map Play . validMoves game $ hand)
-    putStr . formatMoves $ moves
-    answer <- getInputBelow (length moves)
-    return (moves !! answer)
-    where
-    formatMoves :: [Move] -> String
-    formatMoves m = fM m 0
-    fM :: [Move] -> Integer -> String
-    fM (x:xs) i = show i ++ ".: " ++ show x ++ "\n" ++ fM xs (i + 1)
-    fM [] _     = ""
-    getInputBelow limit = do
-        putStr "Input a number: "
-        hFlush stdout
-        inp <- getLine
-        case (readMaybe inp :: Maybe Int) of
-            Just x -> if x < limit then return x
-                      else getInputBelow limit
-            Nothing -> getInputBelow limit
-
+    let m = Draw : (map Play . validMoves game $ hand)
+    putStr . formatMoves $ m
+    return m
+  answer <- liftIO $ getInputBelow (length moves)
+  return (moves !! answer)
 
 -- | Takes a list of "skeleton players" and deals the (shuffled) cards.
 makeGame :: [Player] -> IO Game
-makeGame participants = do
-    d <- shuffled deck
-    let (pl, nd) = deal participants [] d
-    let (top:rest) = nd
-    return Game { topCard = top
-                , players = pl
-                , stack   = rest
-                , ntake   = 0
-                , nskip   = False
-                }
-    where
-    deal [] pls cards     = (pls, cards)
-    deal (p:ps) pls cards = let (player_cards, remainder) = splitAt 7 cards
-                            in deal ps (pls ++ [withCards p player_cards]) remainder
-    withCards (AiPlayer n _)    = AiPlayer n
-    withCards (HumanPlayer n _) = HumanPlayer n
+makeGame participants = liftM (makeGame' participants) $ shuffled deck
 
+makeGame' :: [Player] -> Deck -> Game
+makeGame' participants d =
+  let
+    (pl, nd) = deal participants [] d
+    (top:rest) = nd
+  in
+   Game { topCard = top
+        , players = pl
+        , stack   = rest
+        , ntake   = 0
+        , nskip   = False
+        }
+
+deal :: [Player] -> [Player] -> Hand -> ([Player], Hand)
+deal [] pls cards     = (pls, cards)
+deal (p:ps) pls cards = let (player_cards, remainder) = splitAt 7 cards
+                        in deal ps (withCards p player_cards : pls) remainder
+  where
+    withCards (Player t n _)    = Player t n
+
+filterOne :: (a -> Bool) -> [a] -> [a]
+filterOne _ []     = []
+filterOne f (x:xs) = if f x
+                     then x : filterOne f xs
+                     else xs
+
+draw :: Int -> Game -> Game
+draw n g = let (taken, st) = splitAt n (stack g)
+           in g { players = updateFirstPlayer (++taken) (players g)
+                , stack = st
+                }
+
+updateFirstPlayer :: (Hand -> Hand) -> [Player] -> [Player]
+updateFirstPlayer f p = let (pl:rst) = p
+                        in applyHand f pl : rst
+
+cname :: Game -> String
+cname = getName . head . players
+
+nextPlayer :: Game -> Game
+nextPlayer g = g { players = rotate . players $ g }
 
 -- | Performs a single game round, usually called in a loop
-gameRound :: Game -> IO Game
-gameRound game = do
-    let pname = getName . head . players $ game
-    let pcards = length . getCards . head . players $ game
-    putStrLn ("\n\nThe top card is " ++ (show . topCard $ game))
-    putStrLn ("It's " ++ pname ++ "'s turn, " ++ show pcards ++ " cards left")
+gameRound :: (Monad m, MonadIO m, MonadState Game m) => m ()
+gameRound = do
+    initial <- get
+    let pname = getName . head . players $ initial
+    let pcards = length . getCards . head . players $ initial
+    liftIO $ do
+      putStrLn ("\n\nThe top card is " ++ (show . topCard $ initial))
+      putStrLn ("It's " ++ pname ++ " turn, " ++ show pcards ++ " cards left")
+    game <- get
     if nskip game then do
-        putStrLn (pname ++ " skips the round")
-        return game { nskip = False
-                    , players = rotate . players $ game
-                    }
+        liftIO $ putStrLn (pname ++ " skips the round")
+        put $ game { nskip = False }
+        modify nextPlayer
+        return ()
     else do
-        move <- getMove game
+        move <- getMove
         if move == Draw then do
-            let nt = ntake game
-            if nt == 0 then do
-                putStrLn (pname ++ " takes a single card")
-                let new_game = draw 1 game
-                new_move <- getMove new_game
-                doMove new_move new_game
-            else do 
-                putStrLn (pname ++ " takes " ++ show nt ++ " cards")
-                return . draw nt $ game { ntake = 0
-                                        , players = rotate . players $ game
-                                        }
+            let nt = ntake game `max` 1
+            liftIO $ putStrLn (pname ++ " " ++ takeLine nt)
+            modify $ draw nt
+            modify $ \g -> g { ntake = 0 }
+            getMove >>= doMove
         else
-            doMove move game
-    where
-    filterOne :: (a -> Bool) -> [a] -> [a]
-    filterOne _ []     = []
-    filterOne f (x:xs) = if f x then x : filterOne f xs
-                         else xs
-    draw :: Int -> Game -> Game
-    draw n g = let (taken, st) = splitAt n (stack g)
-               in g { players = updateFirstPlayer (++taken) (players g)
-                    , stack = st
-                    }
-    updateFirstPlayer :: (Hand -> Hand) -> [Player] -> [Player]
-    updateFirstPlayer f p = let (pl:pls) = p
-                            in applyHand f pl : pls
-    cname :: Game -> String
-    cname = getName . head . players
-    doMove :: Move -> Game -> IO Game
-    doMove (Play card) g = do
-        putStrLn (cname g ++ " decides to play " ++ show card)
-        case card of
-            Pick -> do
-                color <- getColor . head . players $ g
-                putStrLn ("The picked color is " ++ show color)
-                return g { topCard = Picked color
-                         , players = rotate . updateFirstPlayer (filterOne (/= card)) . players $ g
-                         }
-            Pick4 -> do
-                color <- getColor . head . players $ g
-                putStrLn ("The picked color is " ++ show color)
-                return g { topCard = Picked color
-                         , ntake = 4
-                         , players = rotate . updateFirstPlayer (filterOne (/= card)) . players $ g
-                         }
-            Card _ Reverse ->
-                return g { topCard = card
-                         , players = reverse . updateFirstPlayer (filterOne (/= card)) . players $ g
-                         }
-            Card _ Take2 ->
-                return g { topCard = card
-                         , players = rotate . updateFirstPlayer (filterOne (/= card)) . players $ g
-                         , ntake = ntake g + 2
-                         }
-            Card _ Skip ->
-                return g { topCard = card
-                         , players = rotate . updateFirstPlayer (filterOne (/= card)) . players $ g
-                         , nskip = True
-                         }
-            Card _ _ ->
-                return g { topCard = card
-                         , players = rotate . updateFirstPlayer (filterOne (/= card)) . players $ g
-                         }
-            Picked _ -> error "Cheater, how did you get that card?"
-    doMove Draw g = do
-        putStrLn (cname g ++ " can't play a card")
-        return g { players = rotate . players $ g }
+            doMove move
 
+takeLine :: Int -> String
+takeLine 1 = "takes a single card"
+takeLine n = "takes " ++ show n ++ " cards"
+
+pickColor :: (Monad m, MonadIO m, MonadState Game m) => m Color
+pickColor = do
+  g <- get
+  liftIO $ do
+    c <- getColor . head . players $ g
+    putStrLn ("The picked color is " ++ show c)
+    return c
+
+nextTopCard :: (Monad m, MonadIO m, MonadState Game m) => Card -> m Card
+nextTopCard card = case card of
+  Pick  -> liftM Picked pickColor
+  Pick4 -> liftM Picked pickColor
+  _     -> return card
+
+nextPlayersModifier :: Card -> [Player] -> [Player]
+nextPlayersModifier card = case card of
+  Card _ Reverse -> reverse
+  _              -> rotate
+
+nextTake :: Card -> Int -> Int
+nextTake card = case card of
+  Pick4        -> const 4
+  Card _ Take2 -> (+ 2)
+  _            -> id
+
+nextSkip :: Card -> Bool
+nextSkip card = case card of
+  Card _ Skip -> True
+  _           -> False
+
+doMoveUpdate :: Card -> Card -> Game -> Game
+doMoveUpdate card nextTop g = g {
+    topCard = nextTop
+  , ntake = nextTake card . ntake $ g
+  , nskip = nextSkip card
+  , players = nextPlayersModifier card . updateFirstPlayer (filterOne (/= card)) . players $ g
+  }
+
+doMove :: (Monad m, MonadIO m, MonadState Game m) => Move -> m ()
+doMove (Play card) = do
+  game <- get
+  liftIO $ putStrLn (cname game ++ " decides to play " ++ show card)
+  nTopCard <- nextTopCard card
+  modify $ doMoveUpdate card nTopCard
+doMove Draw = do
+  g <- get
+  liftIO $ putStrLn (cname g ++ " can't play a card")
+  return ()
 
 -- | Returns a color that the player picks
 getColor :: Player -> IO Color
-getColor (AiPlayer _ hand) = let getCol [] = Blue
-                                 getCol (h:hs) = case h of
-                                                       Card col _ -> col
-                                                       _ -> getCol hs
+getColor (Player Ai _ hand) = let getCol [] = Blue
+                                  getCol (h:hs) = case h of
+                                                   Card col _ -> col
+                                                   _ -> getCol hs
                                in return . getCol $ hand
-getColor h@(HumanPlayer _ _) = do
+getColor h@(Player Human _ _) = do
     putStr "Input a color (Red, Blue, Yellow, Green): "
     hFlush stdout
     inp <- getLine
@@ -164,14 +201,20 @@ rotate (x:xs) = xs ++ [x]
 won :: Game -> Bool
 won = any (null . getCards) . players
 
+gameLoop :: (Monad m, MonadIO m, MonadState Game m) => m ()
+gameLoop = do
+  w <- gets won
+  if w
+  then do
+    winner <- gets $ last . players
+    liftIO $ putStrLn (getName winner ++ " has won the game")
+  else do
+    gameRound
+    gameLoop
+  return ()
+
 -- | Run the main UNO game
 main :: IO ()
 main = do
-    game <- makeGame [HumanPlayer "Homo Sapiens" [], AiPlayer "Elisa" []]
-    gameLoop game
-    where
-    gameLoop :: Game -> IO ()
-    gameLoop g = if won g then do
-                    let winner = last . players $ g
-                    putStrLn (getName winner ++ " has won the game")
-                 else gameRound g >>= gameLoop
+    game <- makeGame [Player Human "Homo Sapiens" [], Player Ai "Elisa" []]
+    evalStateT gameLoop game
